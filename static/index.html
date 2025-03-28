@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Language Detector</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f4f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            flex-direction: column;
+        }
+
+        h1 {
+            font-size: 32px;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-color: #ffffff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+
+        video {
+            width: 640px;
+            height: 480px;
+            border: 2px solid #007bff;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        canvas {
+            display: none;
+        }
+
+        #prediction {
+            font-size: 24px;
+            color: #007bff;
+            margin-top: 20px;
+            font-weight: bold;
+        }
+
+        button {
+            padding: 12px 20px;
+            font-size: 18px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #218838;
+        }
+
+        button:active {
+            background-color: #1e7e34;
+        }
+
+        .error {
+            color: red;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+
+        .loader {
+            display: none;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Sign Language Detection</h1>
+        <video id="videoElement" autoplay></video>
+        <canvas id="videoCanvas" width="640" height="480"></canvas>
+        <div id="prediction">Prediction: None</div>
+        <button onclick="startDetection()">Start Detection</button>
+        <div class="loader" id="loader"></div>
+        <div class="error" id="error-message"></div>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('videoElement');
+        const videoCanvas = document.getElementById('videoCanvas');
+        const predictionElement = document.getElementById('prediction');
+        const loader = document.getElementById('loader');
+        const errorMessage = document.getElementById('error-message');
+        const context = videoCanvas.getContext('2d');
+
+        let stream;
+
+        async function startDetection() {
+            try {
+                // Clear any error messages
+                errorMessage.textContent = "";
+
+                // Start webcam video stream
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                videoElement.srcObject = stream;
+
+                // Show loader while processing
+                loader.style.display = 'block';
+                predictionElement.textContent = 'Prediction: Processing...';
+
+                // Process frames
+                requestAnimationFrame(processFrame);
+            } catch (err) {
+                errorMessage.textContent = "Error accessing webcam: " + err.message;
+            }
+        }
+
+        function processFrame() {
+            context.drawImage(videoElement, 0, 0, videoCanvas.width, videoCanvas.height);
+
+            // Convert the canvas to base64 image
+            const frame = videoCanvas.toDataURL('image/jpeg');
+
+            // Send the frame to Flask for prediction
+            fetch('/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ frame: frame })
+            })
+            .then(response => response.json())
+            .then(data => {
+                loader.style.display = 'none';
+                if (data.prediction) {
+                    predictionElement.textContent = `Prediction: ${data.prediction}`;
+                } else {
+                    predictionElement.textContent = 'Prediction: No Gesture Detected';
+                }
+            })
+            .catch(error => {
+                loader.style.display = 'none';
+                errorMessage.textContent = 'Error in prediction: ' + error.message;
+            });
+
+            // Repeat the process
+            requestAnimationFrame(processFrame);
+        }
+    </script>
+</body>
+</html>
